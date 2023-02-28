@@ -90,7 +90,7 @@ def remove_units(value):
 
 
 def get_hash(filename):
-    """get sha256 hash for given file, computed in BUF_SIZE chunks"""
+    """get sha256 hash for given file"""
     sha256 = hashlib.sha256()
 
     with open(filename, "rb") as file:

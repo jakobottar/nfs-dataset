@@ -44,9 +44,6 @@ def get_metadata(filename):
 
     name_split = name.split(sep="_")
 
-    if len(name_split) <= 12:
-        print(name)
-
     # catch missing NA value
     if name_split[12] not in ["NA", "8wtpct"]:
         name_split.insert(12, "NA")

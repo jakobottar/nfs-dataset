@@ -67,18 +67,45 @@ def get_metadata(filename):
 
     ### Reformatting block:
 
-    # handle formatting
+    # format material
     metadata["Material"] = format_material(metadata["Material"])
+
+    # format magnification
+    metadata["Magnification"] = remove_units(metadata["Magnification"])
+
+    # format resolution
+    # TODO
+
+    # format HFW, done in tif metadata section
+
+    # format starting material
     metadata["StartingMaterial"] = format_starting_material(
         metadata["StartingMaterial"]
     )
-    metadata["Magnification"] = remove_units(metadata["Magnification"])
+
+    # format calcination temp
     metadata["CalcinationTemp"] = remove_units(metadata["CalcinationTemp"])
+
+    # format calcination time
+    # TODO: convert to same unit
     # metadata["CalcinationTime"] = remove_units(metadata["CalcinationTime"])
+
+    # format aging time\
+    # TODO: convert to same unit
     # metadata["AgingTime"] = remove_units(metadata["AgingTime"])
+
+    # format aging temp
     metadata["AgingTemp"] = remove_units(metadata["AgingTemp"])
 
-    # standardize particle formatting
+    # format AgingHumidity, AgingOxygen, Impurity, ImpurityConcentration
+    # TODO
+
+    # format detector, done in tif metadata section
+
+    # format coating
+    # TODO
+
+    # format particle
     particle_str = metadata["Particle"].lower()
     particle_str = particle_str.replace("particle", "").replace("part", "")
 
@@ -87,7 +114,7 @@ def get_metadata(filename):
 
     metadata["Particle"] = "part" + particle_str
 
-    # standardize replicate formatting
+    # format replicate
     rep_str = metadata["Replicate"].lower()
     rep_str = rep_str.replace("replicate", "rep")
     if rep_str.find("rep") == -1:
@@ -95,6 +122,12 @@ def get_metadata(filename):
 
     metadata["Replicate"] = rep_str
 
+    # format image
+    # format date
+    # TODO: on some images, these fields are flipped. Get image capture date from metadata
+
+    # read tif metadata
+    metadata["DetectorMode"] = "NA"  # place this if file read breaks
     try:
         with tifffile.TiffFile(os.path.join(ROOT, filename)) as tif:
             detector_name = tif.fei_metadata["Detectors"]["Name"]
@@ -104,7 +137,7 @@ def get_metadata(filename):
             except KeyError:
                 system_name = "unknown"
 
-            # if detector mode hits the right value:
+            # format detector mode
             if detector_mode in ["BSE", "SE"]:
                 metadata["DetectorMode"] = detector_mode
             # if detector col hits the right value:
@@ -126,7 +159,7 @@ def get_metadata(filename):
                 print("bad mode")
                 metadata["DetectorMode"] = "NA"
 
-            # get detector system
+            # format detector
             if (system_name.find("Teneo") != -1) or (
                 metadata["Detector"].find("Teneo") != -1
             ):
@@ -155,13 +188,19 @@ def get_metadata(filename):
                 print("bad detector")
                 metadata["Detector"] = "NA"
 
+            # format HFW
             metadata["HFW"] = round(tif.fei_metadata["EBeam"]["HFW"] * 1e6, 2)
     except tifffile.TiffFileError:
         print(f"{filename} is not a readable tiff file")
-    except:
-        print(f"{filename} has some other error")
+    except KeyError:
+        print(f"{filename} has a metadata key error")
+    except TypeError:
+        print(f"{filename} has no fei metadata")
 
+    # copy filename
     metadata["FileName"] = filename
+
+    # generate file hash
     metadata["Hash"] = get_hash(os.path.join(ROOT, filename))
 
     return metadata
@@ -186,27 +225,28 @@ if __name__ == "__main__":
     print(f"I found {pre - len(deduped)} duplicate images")
     deduped.to_csv("./deduped.csv", index=False)
 
-    # for col in [
-    #     "Material",
-    #     # "Magnification",
-    #     # "Resolution",
-    #     # "HFW",
-    #     "StartingMaterial",
-    #     # "CalcinationTemp",
-    #     # "CalcinationTime",
-    #     # "AgingTime",
-    #     # "AgingTemp",
-    #     # "AgingHumidity",
-    #     # "AgingOxygen",
-    #     # "Impurity",
-    #     # "ImpurityConcentration",
-    #     # "Detector",
-    #     # "Coating",
-    #     # TODO: fix these
-    #     # "Replicate",
-    #     # "Particle",
-    #     # "Image",
-    #     # "Date",
-    # ]:
-    #     print(col)
-    #     print(deduped[col].unique())
+    # unique values
+    for col in [
+        "Material",
+        # "Magnification",
+        # "Resolution",
+        # "HFW",
+        "StartingMaterial",
+        # "CalcinationTemp",
+        # "CalcinationTime",
+        # "AgingTime",
+        # "AgingTemp",
+        # "AgingHumidity",
+        # "AgingOxygen",
+        # "Impurity",
+        # "ImpurityConcentration",
+        "Detector",
+        # "Coating",
+        # "Replicate",
+        # "Particle",
+        # "Image",
+        # "Date",
+        "DetectorMode",
+    ]:
+        print(col)
+        print(deduped[col].unique())

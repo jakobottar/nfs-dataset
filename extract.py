@@ -9,10 +9,9 @@ import os
 import pandas as pd
 import tifffile
 
-from utils import format_material, format_starting_material, get_hash, remove_units
+import utils
 
 ROOT = "/scratch_nvme/jakobj/all-morpho-images"
-# ROOT = "/scratch_nvme/jakobj/multimag/U3O8ADU/10000x"
 
 
 def get_metadata(filename):
@@ -68,10 +67,10 @@ def get_metadata(filename):
     ### Reformatting block:
 
     # format material
-    metadata["Material"] = format_material(metadata["Material"])
+    metadata["Material"] = utils.format_material(metadata["Material"])
 
     # format magnification
-    metadata["Magnification"] = remove_units(metadata["Magnification"])
+    metadata["Magnification"] = utils.remove_units(metadata["Magnification"])
 
     # format resolution
     # TODO
@@ -79,12 +78,12 @@ def get_metadata(filename):
     # format HFW, done in tif metadata section
 
     # format starting material
-    metadata["StartingMaterial"] = format_starting_material(
+    metadata["StartingMaterial"] = utils.format_starting_material(
         metadata["StartingMaterial"]
     )
 
     # format calcination temp
-    metadata["CalcinationTemp"] = remove_units(metadata["CalcinationTemp"])
+    metadata["CalcinationTemp"] = utils.remove_units(metadata["CalcinationTemp"])
 
     # format calcination time
     # TODO: convert to same unit
@@ -95,7 +94,7 @@ def get_metadata(filename):
     # metadata["AgingTime"] = remove_units(metadata["AgingTime"])
 
     # format aging temp
-    metadata["AgingTemp"] = remove_units(metadata["AgingTemp"])
+    metadata["AgingTemp"] = utils.remove_units(metadata["AgingTemp"])
 
     # format AgingHumidity, AgingOxygen, Impurity, ImpurityConcentration
     # TODO
@@ -156,7 +155,7 @@ def get_metadata(filename):
                     metadata["DetectorMode"] = "SE"
             # if we can't sus it out
             else:
-                print("bad mode")
+                utils.warn("unable to find SEM mode")
                 metadata["DetectorMode"] = "NA"
 
             # format detector
@@ -185,23 +184,23 @@ def get_metadata(filename):
             ):
                 metadata["Detector"] = "Nova"
             else:
-                print("bad detector")
+                utils.warn("unable to find SEM detector")
                 metadata["Detector"] = "NA"
 
             # format HFW
             metadata["HFW"] = round(tif.fei_metadata["EBeam"]["HFW"] * 1e6, 2)
     except tifffile.TiffFileError:
-        print(f"{filename} is not a readable tiff file")
+        utils.warn(f"{filename} is not a readable tiff file")
     except KeyError:
-        print(f"{filename} has a metadata key error")
+        utils.warn(f"{filename} has a metadata key error")
     except TypeError:
-        print(f"{filename} has no fei metadata")
+        utils.warn(f"{filename} has no fei metadata")
 
     # copy filename
     metadata["FileName"] = filename
 
     # generate file hash
-    metadata["Hash"] = get_hash(os.path.join(ROOT, filename))
+    metadata["Hash"] = utils.get_hash(os.path.join(ROOT, filename))
 
     return metadata
 
@@ -217,13 +216,16 @@ if __name__ == "__main__":
     df.to_csv("./full.csv", index=False)
 
     # dedupe based on hash
+
     # dupes = df[df.duplicated(subset=["Hash"], keep=False)]
     # dupes.to_csv("./dupes.csv", index=False)
 
     pre = len(df)
     deduped = df.drop_duplicates(subset="Hash", keep="first")
+
     print(f"I found {pre - len(deduped)} duplicate images")
     deduped.to_csv("./deduped.csv", index=False)
+    utils.print_green("done!")
 
     # unique values
     for col in [

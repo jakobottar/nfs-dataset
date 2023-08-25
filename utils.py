@@ -19,18 +19,18 @@ def format_material(value):
     ]:
         return "UO2"
     # TODO: check if a is alpha or amorphous
-    if value in ["alphaUO3", "Alpha-UO3", "AlphaUO3", "UO3"]:
-        return "alphaUO3"
     if value in [
-        "AmUO3",
-        "amUO3",
-        "Am-UO3",
-        "AUO3",
+        "alphaUO3",
+        "Alpha-UO3",
+        "AlphaUO3",
         "a-UO3",
         "A-UO3",
         "aUO3",
         "Contaminant-A-UO3",
+        "UO3",
     ]:
+        return "alphaUO3"
+    if value in ["AmUO3", "amUO3", "Am-UO3", "AUO3"]:
         return "amorphousUO3"
     if value in ["UO4-2H2O", "UO4"]:
         return "UO4"
@@ -67,14 +67,14 @@ def format_starting_material(value):
         "UnwashedUO4-2H2O-direct",
     ]:
         return "unwashedUO4"
-    if value in ["AUCd"]:
-        return "AUCd"
-    if value in ["AUCi"]:
-        return "AUCi"
-    if value in ["MDU"]:
-        return "MDU"
-    if value in ["Umetal"]:
-        return "Umetal"
+    # if value in ["AUCd"]:
+    #     return "AUCd"
+    # if value in ["AUCi"]:
+    #     return "AUCi"
+    # if value in ["MDU"]:
+    #     return "MDU"
+    # if value in ["Umetal"]:
+    #     return "Umetal"
     # TODO: what to do about mixtures?
 
     return value
@@ -101,3 +101,18 @@ def get_hash(filename):
             sha256.update(data)
 
     return sha256.hexdigest()
+
+
+def print_green(string: str):
+    """print in green"""
+    print(f"\033[92m{string}\033[00m")
+
+
+def warn(string: str):
+    """print warn in yellow"""
+    print(f"\033[93mWARN:\033[00m {string}")
+
+
+def error(string: str):
+    """print error in red"""
+    print(f"\033[91mERROR:\033[00m {string}")

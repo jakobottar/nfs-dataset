@@ -9,10 +9,11 @@ import os
 from glob import glob
 from multiprocessing import Pool
 
+import yaml
 from pandas import DataFrame
 from torch.utils.data import Dataset
 
-from processing import get_metadata
+from processing import filter_dataframe, get_metadata
 from utils import print_green
 
 
@@ -55,7 +56,7 @@ def build_nfs_dataset(
         "Material",
         # "Magnification",
         # "Resolution",
-        # "HFW",
+        "HFW",
         "StartingMaterial",
         # "CalcinationTemp",
         # "CalcinationTime",
@@ -66,19 +67,44 @@ def build_nfs_dataset(
         # "Impurity",
         # "ImpurityConcentration",
         "Detector",
-        # "Coating",
+        "Coating",
         # "Replicate",
         # "Particle",
         # "Image",
         # "Date",
+        "Detector",
         "DetectorMode",
     ]:
         print(col)
         print(df[col].unique())
 
-    # TODO: filter datasets according dataset_config.yml
+    # read config file
+    print("Reading config file... ", end="")
+    with open(config_file, "r") as file:
+        dataset_configs = yaml.full_load(file)  ## TODO: make safe
+    print_green("done.")
+
+    # filter train/test datasets
+    print("Filtering train/test datasets... ", end="")
+    train_test = filter_dataframe(df, dataset_configs["train"]["filters"])
+
+    # make train/val split
+    train_test = train_test.sample(frac=1).reset_index(drop=True)
+    train = train_test.iloc[: int(len(train_test) * dataset_configs["train"]["test-split"])]
+    test = train_test.iloc[int(len(train_test) * dataset_configs["train"]["test-split"]) :]
+
+    datasets = [{"name": "train", "dataframe": train}, {"name": "test", "dataframe": test}]
+    print_green("done.")
+
+    # filter other datasets
+    print("Filtering other datasets... ", end="")
+    # TODO: filter other datasets
+    print_green("done.")
 
     # TODO: package datasets into lmdbs
+    for dataset in datasets:
+        print(dataset["name"])
+        print(dataset["dataframe"].head())
 
 
 class NFSDataset(Dataset):
@@ -104,6 +130,4 @@ class NFSDataset(Dataset):
 
 if __name__ == "__main__":
     # build_nfs_dataset("/usr/sci/scratch/jakobj/all-morpho-images/", "./data/processed", num_threads=16)
-    build_nfs_dataset(
-        "/scratch_nvme/jakobj/all-morpho-images/", "./data/processed", num_threads=16
-    )
+    build_nfs_dataset("/scratch_nvme/jakobj/all-morpho-images/", "./data/processed", num_threads=16)

@@ -2,9 +2,11 @@ import multiprocessing
 import os
 
 import pandas as pd
+import pyxis as px
 import tifffile
 
 import utils
+
 
 def get_metadata(full_filename):
     """
@@ -33,8 +35,7 @@ def get_metadata(full_filename):
     }
 
     # remove .tif extension
-    
-    
+
     name = os.path.basename(full_filename)[:-4]
 
     name_split = name.split(sep="_")
@@ -72,9 +73,7 @@ def get_metadata(full_filename):
     # format HFW, done in tif metadata section
 
     # format starting material
-    metadata["StartingMaterial"] = utils.format_starting_material(
-        metadata["StartingMaterial"]
-    )
+    metadata["StartingMaterial"] = utils.format_starting_material(metadata["StartingMaterial"])
 
     # format calcination temp
     metadata["CalcinationTemp"] = utils.remove_units(metadata["CalcinationTemp"])
@@ -140,36 +139,26 @@ def get_metadata(full_filename):
             elif detector_mode == "CN":
                 metadata["DetectorMode"] = "SE"
             # if the detector is Teneo we can search T1/T2
-            elif (system_name.find("Teneo") != -1) or (
-                metadata["Detector"].find("Teneo") != -1
-            ):
+            elif (system_name.find("Teneo") != -1) or (metadata["Detector"].find("Teneo") != -1):
                 if detector_name == "T1" or (metadata["Detector"].find("T1") != -1):
                     metadata["DetectorMode"] = "BSE"
                 elif detector_name == "T2" or (metadata["Detector"].find("T2") != -1):
                     metadata["DetectorMode"] = "SE"
             # if we can't sus it out
             else:
-                utils.warn("unable to find SEM mode")
+                # utils.warn("unable to find SEM mode")
                 metadata["DetectorMode"] = "NA"
 
             # format detector
-            if (system_name.find("Teneo") != -1) or (
-                metadata["Detector"].find("Teneo") != -1
-            ):
+            if (system_name.find("Teneo") != -1) or (metadata["Detector"].find("Teneo") != -1):
                 metadata["Detector"] = "Teneo"
             # elif (metadata["Detector"] == "TLD") and detector_mode in ["CN", "SE"]:
             #     metadata["Detector"] = "Nova"
-            elif (system_name.find("Helios") != -1) or (
-                metadata["Detector"].find("Helios") != -1
-            ):
+            elif (system_name.find("Helios") != -1) or (metadata["Detector"].find("Helios") != -1):
                 metadata["Detector"] = "Helios"
-            elif (system_name.find("Quattro") != -1) or (
-                metadata["Detector"].find("Quattro") != -1
-            ):
+            elif (system_name.find("Quattro") != -1) or (metadata["Detector"].find("Quattro") != -1):
                 metadata["Detector"] = "Quattro"
-            elif (system_name.find("Quanta") != -1) or (
-                metadata["Detector"].find("Quanta") != -1
-            ):
+            elif (system_name.find("Quanta") != -1) or (metadata["Detector"].find("Quanta") != -1):
                 metadata["Detector"] = "Quanta"
             elif (
                 (system_name.find("Nova") != -1)
@@ -178,7 +167,7 @@ def get_metadata(full_filename):
             ):
                 metadata["Detector"] = "Nova"
             else:
-                utils.warn("unable to find SEM detector")
+                # utils.warn("unable to find SEM detector")
                 metadata["Detector"] = "NA"
 
             # format HFW
@@ -193,6 +182,10 @@ def get_metadata(full_filename):
         # utils.warn(f"{full_filename} has no fei metadata")
         pass
 
+    # if hfw not updated, remove units
+    if type(metadata["HFW"]) == str:
+        metadata["HFW"] = float(utils.remove_units(metadata["HFW"]))
+
     # copy filename
     metadata["FileName"] = full_filename
 
@@ -200,3 +193,25 @@ def get_metadata(full_filename):
     metadata["Hash"] = utils.get_hash(full_filename)
 
     return metadata
+
+
+def filter_dataframe(dataframe: pd.DataFrame, filters) -> pd.DataFrame:
+    """
+    Filter dataframe by given filters
+    """
+    for attribute in filters:
+        values = filters[attribute]
+
+        if isinstance(values, tuple):
+            # filter by range
+            assert values[0] < values[1]
+
+            dataframe = dataframe[(dataframe[attribute] >= values[0]) & (dataframe[attribute] <= values[1])]
+
+        elif isinstance(values, list):
+            # filter by list
+            dataframe = dataframe[dataframe[attribute].isin(values)]
+        else:
+            utils.error("Invalid filter type")
+
+    return dataframe

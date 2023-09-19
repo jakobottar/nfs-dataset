@@ -1,8 +1,3 @@
-"""
-read image files from folder and parse their metadata stored in filename
-
-Jakob Johnson - 02-28-2023
-"""
 import multiprocessing
 import os
 
@@ -11,10 +6,7 @@ import tifffile
 
 import utils
 
-ROOT = "/scratch_nvme/jakobj/all-morpho-images"
-
-
-def get_metadata(filename):
+def get_metadata(full_filename):
     """
     Break down filename and return dict of fields from the filename's info
     """
@@ -41,7 +33,9 @@ def get_metadata(filename):
     }
 
     # remove .tif extension
-    name = filename[:-4]
+    
+    
+    name = os.path.basename(full_filename)[:-4]
 
     name_split = name.split(sep="_")
 
@@ -128,7 +122,7 @@ def get_metadata(filename):
     # read tif metadata
     metadata["DetectorMode"] = "NA"  # place this if file read breaks
     try:
-        with tifffile.TiffFile(os.path.join(ROOT, filename)) as tif:
+        with tifffile.TiffFile(full_filename) as tif:
             detector_name = tif.fei_metadata["Detectors"]["Name"]
             detector_mode = tif.fei_metadata[detector_name]["Signal"]
             try:
@@ -190,65 +184,19 @@ def get_metadata(filename):
             # format HFW
             metadata["HFW"] = round(tif.fei_metadata["EBeam"]["HFW"] * 1e6, 2)
     except tifffile.TiffFileError:
-        utils.warn(f"{filename} is not a readable tiff file")
+        # utils.warn(f"{full_filename} could not be read")
+        pass
     except KeyError:
-        utils.warn(f"{filename} has a metadata key error")
+        # utils.warn(f"{full_filename} has a metadata key error")
+        pass
     except TypeError:
-        utils.warn(f"{filename} has no fei metadata")
+        # utils.warn(f"{full_filename} has no fei metadata")
+        pass
 
     # copy filename
-    metadata["FileName"] = filename
+    metadata["FileName"] = full_filename
 
     # generate file hash
-    metadata["Hash"] = utils.get_hash(os.path.join(ROOT, filename))
+    metadata["Hash"] = utils.get_hash(full_filename)
 
     return metadata
-
-
-if __name__ == "__main__":
-    filenames = os.listdir(ROOT)
-
-    # get image metadata and hashes
-    with multiprocessing.Pool(16) as pool:
-        image_metadata = pool.map(get_metadata, filenames)
-
-    df = pd.DataFrame().from_dict(image_metadata)
-    df.to_csv("./full.csv", index=False)
-
-    # dedupe based on hash
-
-    # dupes = df[df.duplicated(subset=["Hash"], keep=False)]
-    # dupes.to_csv("./dupes.csv", index=False)
-
-    pre = len(df)
-    deduped = df.drop_duplicates(subset="Hash", keep="first")
-
-    print(f"I found {pre - len(deduped)} duplicate images")
-    deduped.to_csv("./deduped.csv", index=False)
-    utils.print_green("done!")
-
-    # unique values
-    for col in [
-        "Material",
-        # "Magnification",
-        # "Resolution",
-        # "HFW",
-        "StartingMaterial",
-        # "CalcinationTemp",
-        # "CalcinationTime",
-        # "AgingTime",
-        # "AgingTemp",
-        # "AgingHumidity",
-        # "AgingOxygen",
-        # "Impurity",
-        # "ImpurityConcentration",
-        "Detector",
-        # "Coating",
-        # "Replicate",
-        # "Particle",
-        # "Image",
-        # "Date",
-        "DetectorMode",
-    ]:
-        print(col)
-        print(deduped[col].unique())

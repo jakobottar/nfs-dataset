@@ -13,7 +13,7 @@ import yaml
 from pandas import DataFrame
 from torch.utils.data import Dataset
 
-from processing import filter_dataframe, get_metadata
+from processing import filter_dataframe, get_metadata, make_lmdb
 from utils import print_green
 
 
@@ -34,77 +34,83 @@ def build_nfs_dataset(
     """
 
     # get filenames
-    print("Getting filenames... ", end="")
+    print("Getting filenames... ", end="", flush=True)
     glob_pattern = os.path.join(src_dir, "*")
     filenames = glob(glob_pattern)
     print_green("done.")
 
     # get image metadata and hashes
-    print("Getting metadata (this may take a while)... ", end="")
+    print("Getting metadata (this may take a while)... ", end="", flush=True)
     with Pool(num_threads) as pool:
         image_metadata = pool.map(get_metadata, filenames)
     print_green("done.")
 
     # remove duplicates
-    print("Removing duplicates... ", end="")
+    print("Removing duplicates... ", end="", flush=True)
     df = DataFrame().from_dict(image_metadata)
     df = df.drop_duplicates(subset="Hash", keep="first")
     print_green("done.")
 
     # unique values
-    for col in [
-        "Material",
-        # "Magnification",
-        # "Resolution",
-        "HFW",
-        "StartingMaterial",
-        # "CalcinationTemp",
-        # "CalcinationTime",
-        # "AgingTime",
-        # "AgingTemp",
-        # "AgingHumidity",
-        # "AgingOxygen",
-        # "Impurity",
-        # "ImpurityConcentration",
-        "Detector",
-        "Coating",
-        # "Replicate",
-        # "Particle",
-        # "Image",
-        # "Date",
-        "Detector",
-        "DetectorMode",
-    ]:
-        print(col)
-        print(df[col].unique())
+    # for col in [
+    #     "Material",
+    #     # "Magnification",
+    #     # "Resolution",
+    #     "HFW",
+    #     "StartingMaterial",
+    #     # "CalcinationTemp",
+    #     # "CalcinationTime",
+    #     # "AgingTime",
+    #     # "AgingTemp",
+    #     # "AgingHumidity",
+    #     # "AgingOxygen",
+    #     # "Impurity",
+    #     # "ImpurityConcentration",
+    #     "Detector",
+    #     "Coating",
+    #     # "Replicate",
+    #     # "Particle",
+    #     # "Image",
+    #     # "Date",
+    #     "Detector",
+    #     "DetectorMode",
+    # ]:
+    #     print(col)
+    #     print(df[col].unique())
 
     # read config file
-    print("Reading config file... ", end="")
+    print("Reading config file... ", end="", flush=True)
     with open(config_file, "r") as file:
         dataset_configs = yaml.full_load(file)  ## TODO: make safe
     print_green("done.")
 
     # filter train/test datasets
-    print("Filtering train/test datasets... ", end="")
+    print("Filtering train/test datasets... ", end="", flush=True)
     train_test = filter_dataframe(df, dataset_configs["train"]["filters"])
+    train_test["Label"] = train_test[dataset_configs["train"]["label"]]
+    # TODO: integer conversion of labels
 
     # make train/val split
     train_test = train_test.sample(frac=1).reset_index(drop=True)
-    train = train_test.iloc[: int(len(train_test) * dataset_configs["train"]["test-split"])]
-    test = train_test.iloc[int(len(train_test) * dataset_configs["train"]["test-split"]) :]
+    test = train_test.iloc[: int(len(train_test) * dataset_configs["train"]["test-split"])]
+    train = train_test.iloc[int(len(train_test) * dataset_configs["train"]["test-split"]) :]
 
     datasets = [{"name": "train", "dataframe": train}, {"name": "test", "dataframe": test}]
+    del dataset_configs["train"]
     print_green("done.")
 
     # filter other datasets
-    print("Filtering other datasets... ", end="")
+    print("Filtering other datasets... ", end="", flush=True)
     # TODO: filter other datasets
     print_green("done.")
 
-    # TODO: package datasets into lmdbs
+    # package datasets into lmdbs
     for dataset in datasets:
-        print(dataset["name"])
-        print(dataset["dataframe"].head())
+        print(f"Building {dataset['name']} dataset... ", end="", flush=True)
+        make_lmdb(dest_dir, dataset["name"], dataset["dataframe"])
+        print_green("done.")
+
+    # TODO: verify datasets
 
 
 class NFSDataset(Dataset):
@@ -130,4 +136,4 @@ class NFSDataset(Dataset):
 
 if __name__ == "__main__":
     # build_nfs_dataset("/usr/sci/scratch/jakobj/all-morpho-images/", "./data/processed", num_threads=16)
-    build_nfs_dataset("/scratch_nvme/jakobj/all-morpho-images/", "./data/processed", num_threads=16)
+    build_nfs_dataset("/scratch_nvme/jakobj/all-morpho-images/", "./data/", num_threads=16)

@@ -3,3 +3,4 @@ __pycache__
 .python-version
 examples/
 dataset_config.yml
+data/

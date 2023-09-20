@@ -1,2 +1,28 @@
+[tool.poetry]
+name = "nfsdata"
+version = "0.1.0"
+description = "utilities for working with nuclear forensics datasets"
+authors = ["jakobottar <jakobottar@pm.me>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+ml-pyxis = "^0.4.dev0"
+pandas = "^2.1.0"
+torch = "^2.0.1"
+Pillow = "^10.0.1"
+tifffile = "^2023.9.18"
+PyYAML = "^6.0.1"
+numpy = "^1.26.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.9.1"
+isort = "^5.12.0"
+
 [tool.black]
 line-length = 120
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

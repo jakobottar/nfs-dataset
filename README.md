@@ -1,5 +1,7 @@
 # Nuclear Forensics Dataset
 
+`nfsdata`
+
 ## Usage
 
 ### `build_nfs_dataset`

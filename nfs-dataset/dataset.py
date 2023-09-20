@@ -15,15 +15,14 @@ import torch
 import yaml
 from pandas import DataFrame
 
-from processing import filter_dataframe, get_metadata, make_lmdb
-from utils import print_green
+from .utils import filter_dataframe, get_metadata, make_lmdb, print_green
 
 
 def build_nfs_dataset(
     src_dir: str,
     dest_dir: str,
+    config_file: str,
     num_threads: int = 4,
-    config_file: str = "./dataset_config.yml",
 ) -> None:
     """
     Build the NFS dataset.
@@ -176,8 +175,12 @@ class NFSDataset(torch.utils.data.Dataset):
 
 
 if __name__ == "__main__":
-    # build_nfs_dataset("/usr/sci/scratch/jakobj/all-morpho-images/", "./data/processed", num_threads=16)
-    build_nfs_dataset("/scratch_nvme/jakobj/all-morpho-images/", "./data/", num_threads=16)
+    build_nfs_dataset(
+        src_dir="/scratch_nvme/jakobj/all-morpho-images/",
+        dest_dir="./data/",
+        config_file="./dataset_config.yml",
+        num_threads=16,
+    )
 
     dataset = NFSDataset("train", "./data/")
     print(dataset)

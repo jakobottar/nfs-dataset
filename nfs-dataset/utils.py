@@ -1,5 +1,7 @@
+import hashlib
 import multiprocessing
 import os
+import re
 
 import numpy as np
 import pandas as pd
@@ -7,7 +9,7 @@ import pyxis as px
 import tifffile
 from PIL import Image
 
-import utils
+BUF_SIZE = 65536
 
 
 def get_metadata(full_filename):
@@ -64,10 +66,10 @@ def get_metadata(full_filename):
     ### Reformatting block:
 
     # format material
-    metadata["Material"] = utils.format_material(metadata["Material"])
+    metadata["Material"] = format_material(metadata["Material"])
 
     # format magnification
-    metadata["Magnification"] = utils.remove_units(metadata["Magnification"])
+    metadata["Magnification"] = remove_units(metadata["Magnification"])
 
     # format resolution
     # TODO
@@ -75,10 +77,10 @@ def get_metadata(full_filename):
     # format HFW, done in tif metadata section
 
     # format starting material
-    metadata["StartingMaterial"] = utils.format_starting_material(metadata["StartingMaterial"])
+    metadata["StartingMaterial"] = format_starting_material(metadata["StartingMaterial"])
 
     # format calcination temp
-    metadata["CalcinationTemp"] = utils.remove_units(metadata["CalcinationTemp"])
+    metadata["CalcinationTemp"] = remove_units(metadata["CalcinationTemp"])
 
     # format calcination time
     # TODO: convert to same unit
@@ -89,7 +91,7 @@ def get_metadata(full_filename):
     # metadata["AgingTime"] = remove_units(metadata["AgingTime"])
 
     # format aging temp
-    metadata["AgingTemp"] = utils.remove_units(metadata["AgingTemp"])
+    metadata["AgingTemp"] = remove_units(metadata["AgingTemp"])
 
     # format AgingHumidity, AgingOxygen, Impurity, ImpurityConcentration
     # TODO
@@ -148,7 +150,7 @@ def get_metadata(full_filename):
                     metadata["DetectorMode"] = "SE"
             # if we can't sus it out
             else:
-                # utils.warn("unable to find SEM mode")
+                # warn("unable to find SEM mode")
                 metadata["DetectorMode"] = "NA"
 
             # format detector
@@ -169,30 +171,30 @@ def get_metadata(full_filename):
             ):
                 metadata["Detector"] = "Nova"
             else:
-                # utils.warn("unable to find SEM detector")
+                # warn("unable to find SEM detector")
                 metadata["Detector"] = "NA"
 
             # format HFW
             metadata["HFW"] = round(tif.fei_metadata["EBeam"]["HFW"] * 1e6, 2)
     except tifffile.TiffFileError:
-        # utils.warn(f"{full_filename} could not be read")
+        # warn(f"{full_filename} could not be read")
         pass
     except KeyError:
-        # utils.warn(f"{full_filename} has a metadata key error")
+        # warn(f"{full_filename} has a metadata key error")
         pass
     except TypeError:
-        # utils.warn(f"{full_filename} has no fei metadata")
+        # warn(f"{full_filename} has no fei metadata")
         pass
 
     # if hfw not updated, remove units
     if type(metadata["HFW"]) == str:
-        metadata["HFW"] = float(utils.remove_units(metadata["HFW"]))
+        metadata["HFW"] = float(remove_units(metadata["HFW"]))
 
     # copy filename
     metadata["FileName"] = full_filename
 
     # generate file hash
-    metadata["Hash"] = utils.get_hash(full_filename)
+    metadata["Hash"] = get_hash(full_filename)
 
     return metadata
 
@@ -214,7 +216,7 @@ def filter_dataframe(dataframe: pd.DataFrame, filters) -> pd.DataFrame:
             # filter by list
             dataframe = dataframe[dataframe[attribute].isin(values)]
         else:
-            utils.error("Invalid filter type")
+            error("Invalid filter type")
 
     return dataframe
 
@@ -227,5 +229,130 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame):
     with px.Writer(dirpath=dirpath, map_size_limit=32000) as db:
         for _, sample in dataframe.iterrows():
             label = np.array([1])  # TODO: fix this
-            image = np.array([np.array(Image.open(sample["FileName"]).convert("RGB")).transpose((2, 0, 1))])
+            image = np.array(Image.open(sample["FileName"]).convert("RGB")).transpose((2, 0, 1))
+            
+            # cut off infobar
+            if sample["Detector"] == "Helios":
+                databar_height = 79
+            elif sample["Detector"] == "Teneo":
+                databar_height = 46
+            elif sample["Detector"] == "Nova":
+                databar_height = 60
+            image = image[:, :-databar_height, :]
+            image = np.array([image])
+
             db.put_samples("label", label, "image", image)
+
+
+def format_material(value):
+    """uniform-ize the material name"""
+
+    # TODO: deal with UO2-i/d and AUC-i/d stuff
+
+    if value in [
+        "UO2",
+        "UO2-Indirect",
+        "UO2-indirect",
+        "UO2-Direct",
+        "UO2-direct",
+        "UO2-Reduction",
+    ]:
+        return "UO2"
+    # TODO: check if a is alpha or amorphous
+    if value in [
+        "alphaUO3",
+        "Alpha-UO3",
+        "AlphaUO3",
+        "a-UO3",
+        "A-UO3",
+        "aUO3",
+        "Contaminant-A-UO3",
+        "UO3",
+    ]:
+        return "alphaUO3"
+    if value in ["AmUO3", "amUO3", "Am-UO3", "AUO3"]:
+        return "amorphousUO3"
+    if value in ["UO4-2H2O", "UO4"]:
+        return "UO4"
+    if value in ["U3O8", "238U3O8", "Alpha-U3O8", "233U3O8"]:
+        return "U3O8"
+    if value in ["Beta-UO3"]:
+        return "betaUO3"
+    if value in ["Na6U7O24"]:
+        return "SDU"
+
+    return value
+
+
+def format_starting_material(value):
+    """uniform-ize the starting material name"""
+
+    if value in ["SDU"]:
+        return "SDU"
+    if value in [
+        "UO4-2H2O",
+        "UO4",
+    ]:
+        return "UO4"
+    if value in [
+        "UO4-washed",
+        "washedUO4",
+        "WashedUO4",
+    ]:
+        return "washedUO4"
+    if value in [
+        "unwashedUO42H2O",
+        "UO4-unwashed",
+        "UnwashedUO4-2H2O",
+        "UnwashedUO4-2H2O-direct",
+    ]:
+        return "unwashedUO4"
+    # if value in ["AUCd"]:
+    #     return "AUCd"
+    # if value in ["AUCi"]:
+    #     return "AUCi"
+    # if value in ["MDU"]:
+    #     return "MDU"
+    # if value in ["Umetal"]:
+    #     return "Umetal"
+    # TODO: what to do about mixtures?
+
+    return value
+
+
+def remove_units(value):
+    """remove units from numeric values"""
+    if value == "NA":
+        return value
+
+    unitless = re.findall(r"([0-9]+\.?[0-9]*|\.[0-9]+)", value)
+    return ".".join(unitless)
+
+
+def get_hash(filename):
+    """get sha256 hash for given file"""
+    sha256 = hashlib.sha256()
+
+    with open(filename, "rb") as file:
+        while True:
+            data = file.read(BUF_SIZE)
+            if not data:
+                break
+            sha256.update(data)
+
+    return sha256.hexdigest()
+
+
+def print_green(string: str):
+    """print in green"""
+    print(f"\033[92m{string}\033[00m")
+
+
+def warn(string: str):
+    """print warn in yellow"""
+    print(f"\033[93mWARN:\033[00m {string}")
+
+
+def error(string: str):
+    """print error in red"""
+    print(f"\033[91mERROR:\033[00m {string}")

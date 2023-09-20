@@ -7,8 +7,8 @@ license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
-ml-pyxis = "^0.4.dev0"
+python = "^3.11.5"
+ml-pyxis = "0.4.dev0"
 pandas = "^2.1.0"
 torch = "^2.0.1"
 Pillow = "^10.0.1"

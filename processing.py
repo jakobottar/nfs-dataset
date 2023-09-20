@@ -221,7 +221,7 @@ def filter_dataframe(dataframe: pd.DataFrame, filters) -> pd.DataFrame:
 
 def make_lmdb(root: str, name: str, dataframe: pd.DataFrame):
     # make dirpath
-    dirpath = os.path.join(root, "nfs", name)
+    dirpath = os.path.join(root, name)
     os.makedirs(dirpath, exist_ok=True)
 
     with px.Writer(dirpath=dirpath, map_size_limit=32000) as db:

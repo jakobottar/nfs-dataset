@@ -9,10 +9,11 @@ import os
 from glob import glob
 from multiprocessing import Pool
 
+import lmdb
 import pyxis as px
+import torch
 import yaml
 from pandas import DataFrame
-from torch.utils.data import Dataset
 
 from processing import filter_dataframe, get_metadata, make_lmdb
 from utils import print_green
@@ -112,45 +113,71 @@ def build_nfs_dataset(
     print_green("done.")
 
     # package datasets into lmdbs
-    # for dataset in datasets:
-    #     print(f"Building {dataset['name']} dataset... ", end="", flush=True)
-    #     make_lmdb(dest_dir, dataset["name"], dataset["dataframe"])
-    #     print_green("done.")
+    for dataset in datasets:
+        print(f"Building {dataset['name']} dataset... ", end="", flush=True)
+        make_lmdb(dest_dir, dataset["name"], dataset["dataframe"])
+        print_green("done.")
 
     # verify datasets
     for dataset in glob(os.path.join(dest_dir, "*")):
         with px.Reader(dirpath=dataset) as db:
-            print(f"{dataset}:\n    num samples: {len(db)}")
-            keys = db.get_data_keys()
-            print(f"    keys: {keys}")
+            print(f"{dataset}:\n    number of samples: {len(db)}")
             sample = db.get_sample(17)
-            for key in keys:
-                print(f"    {key}: {sample[key].shape}, {sample[key].dtype}")
+            for key in db.get_data_keys():
+                print(f"    '{key}' <- dtype: {sample[key].dtype}, shape: {sample[key].shape}")
 
     print("datasets built!")
 
 
-class NFSDataset(Dataset):
+class NFSDataset(torch.utils.data.Dataset):
     """
     Nuclear Forensics dataset.
 
     Args:
+        split (string): Dataset split to load, one of "train", "val", or ood splits defined in dataset_config.yml
         root_dir (string): Root directory of built dataset
+        transform (callable, optional): Optional transform to be applied to a sample
     """
 
-    def __init__(self, root_dir, transform=None):
+    def __init__(self, split: str, root_dir: str, transform=None):
         self.root_dir = root_dir
         self.transform = transform
+        self.dirpath = os.path.join(self.root_dir, split)
 
-        # TODO: check if dataset exists
+        # check if dataset exists
+        try:
+            self.db = px.Reader(self.dirpath, lock=False)
+        except lmdb.Error as exc:
+            raise FileNotFoundError(f"Dataset {self.dirpath} does not exist, make sure it has been built.") from exc
 
     def __len__(self):
         return len(self.root_dir)
 
-    def __getitem__(self, idx):
-        pass
+    def __getitem__(self, key):
+        data = self.db[key]
+        for k in data.keys():
+            data[k] = torch.from_numpy(data[k])
+
+        if self.transform:
+            data["image"] = self.transform(data["image"].to(torch.float))
+
+        return data["image"], data["label"]
+
+    def __repr__(self):
+        if self.transform:
+            format_string = "Transforms: "
+            for t in self.transform.transforms:
+                format_string += "\n"
+                format_string += f"        {t}"
+            format_string += "\n"
+            return str(self.db) + "\n" + format_string
+        else:
+            return str(self.db)
 
 
 if __name__ == "__main__":
     # build_nfs_dataset("/usr/sci/scratch/jakobj/all-morpho-images/", "./data/processed", num_threads=16)
     build_nfs_dataset("/scratch_nvme/jakobj/all-morpho-images/", "./data/", num_threads=16)
+
+    dataset = NFSDataset("train", "./data/")
+    print(dataset)

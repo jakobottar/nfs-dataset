@@ -1,5 +1,4 @@
 import hashlib
-import multiprocessing
 import os
 import re
 
@@ -77,7 +76,9 @@ def get_metadata(full_filename):
     # format HFW, done in tif metadata section
 
     # format starting material
-    metadata["StartingMaterial"] = format_starting_material(metadata["StartingMaterial"])
+    metadata["StartingMaterial"] = format_starting_material(
+        metadata["StartingMaterial"]
+    )
 
     # format calcination temp
     metadata["CalcinationTemp"] = remove_units(metadata["CalcinationTemp"])
@@ -143,7 +144,9 @@ def get_metadata(full_filename):
             elif detector_mode == "CN":
                 metadata["DetectorMode"] = "SE"
             # if the detector is Teneo we can search T1/T2
-            elif (system_name.find("Teneo") != -1) or (metadata["Detector"].find("Teneo") != -1):
+            elif (system_name.find("Teneo") != -1) or (
+                metadata["Detector"].find("Teneo") != -1
+            ):
                 if detector_name == "T1" or (metadata["Detector"].find("T1") != -1):
                     metadata["DetectorMode"] = "BSE"
                 elif detector_name == "T2" or (metadata["Detector"].find("T2") != -1):
@@ -154,15 +157,23 @@ def get_metadata(full_filename):
                 metadata["DetectorMode"] = "NA"
 
             # format detector
-            if (system_name.find("Teneo") != -1) or (metadata["Detector"].find("Teneo") != -1):
+            if (system_name.find("Teneo") != -1) or (
+                metadata["Detector"].find("Teneo") != -1
+            ):
                 metadata["Detector"] = "Teneo"
             # elif (metadata["Detector"] == "TLD") and detector_mode in ["CN", "SE"]:
             #     metadata["Detector"] = "Nova"
-            elif (system_name.find("Helios") != -1) or (metadata["Detector"].find("Helios") != -1):
+            elif (system_name.find("Helios") != -1) or (
+                metadata["Detector"].find("Helios") != -1
+            ):
                 metadata["Detector"] = "Helios"
-            elif (system_name.find("Quattro") != -1) or (metadata["Detector"].find("Quattro") != -1):
+            elif (system_name.find("Quattro") != -1) or (
+                metadata["Detector"].find("Quattro") != -1
+            ):
                 metadata["Detector"] = "Quattro"
-            elif (system_name.find("Quanta") != -1) or (metadata["Detector"].find("Quanta") != -1):
+            elif (system_name.find("Quanta") != -1) or (
+                metadata["Detector"].find("Quanta") != -1
+            ):
                 metadata["Detector"] = "Quanta"
             elif (
                 (system_name.find("Nova") != -1)
@@ -210,7 +221,10 @@ def filter_dataframe(dataframe: pd.DataFrame, filters) -> pd.DataFrame:
             # filter by range
             assert values[0] < values[1]
 
-            dataframe = dataframe[(dataframe[attribute] >= values[0]) & (dataframe[attribute] <= values[1])]
+            dataframe = dataframe[
+                (dataframe[attribute] >= values[0])
+                & (dataframe[attribute] <= values[1])
+            ]
 
         elif isinstance(values, list):
             # filter by list
@@ -229,8 +243,10 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame):
     with px.Writer(dirpath=dirpath, map_size_limit=32000) as db:
         for _, sample in dataframe.iterrows():
             label = np.array([1])  # TODO: fix this
-            image = np.array(Image.open(sample["FileName"]).convert("RGB")).transpose((2, 0, 1))
-            
+            image = np.array(Image.open(sample["FileName"]).convert("RGB")).transpose(
+                (2, 0, 1)
+            )
+
             # cut off infobar
             if sample["Detector"] == "Helios":
                 databar_height = 79

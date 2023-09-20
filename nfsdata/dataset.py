@@ -52,33 +52,6 @@ def build_nfs_dataset(
     df = df.drop_duplicates(subset="Hash", keep="first")
     print_green("done.")
 
-    # unique values
-    # for col in [
-    #     "Material",
-    #     # "Magnification",
-    #     # "Resolution",
-    #     "HFW",
-    #     "StartingMaterial",
-    #     # "CalcinationTemp",
-    #     # "CalcinationTime",
-    #     # "AgingTime",
-    #     # "AgingTemp",
-    #     # "AgingHumidity",
-    #     # "AgingOxygen",
-    #     # "Impurity",
-    #     # "ImpurityConcentration",
-    #     "Detector",
-    #     "Coating",
-    #     # "Replicate",
-    #     # "Particle",
-    #     # "Image",
-    #     # "Date",
-    #     "Detector",
-    #     "DetectorMode",
-    # ]:
-    #     print(col)
-    #     print(df[col].unique())
-
     # read config file
     print("Reading config file... ", end="", flush=True)
     with open(config_file, "r") as file:
@@ -94,9 +67,14 @@ def build_nfs_dataset(
     # make train/val split
     train_val = train_val.sample(frac=1).reset_index(drop=True)
     val = train_val.iloc[: int(len(train_val) * dataset_configs["train"]["val-split"])]
-    train = train_val.iloc[int(len(train_val) * dataset_configs["train"]["val-split"]) :]
+    train = train_val.iloc[
+        int(len(train_val) * dataset_configs["train"]["val-split"]) :
+    ]
 
-    datasets = [{"name": "train", "dataframe": train}, {"name": "val", "dataframe": val}]
+    datasets = [
+        {"name": "train", "dataframe": train},
+        {"name": "val", "dataframe": val},
+    ]
     del dataset_configs["train"]
     print_green("done.")
 
@@ -123,7 +101,9 @@ def build_nfs_dataset(
             print(f"{dataset}:\n    number of samples: {len(db)}")
             sample = db.get_sample(17)
             for key in db.get_data_keys():
-                print(f"    '{key}' <- dtype: {sample[key].dtype}, shape: {sample[key].shape}")
+                print(
+                    f"    '{key}' <- dtype: {sample[key].dtype}, shape: {sample[key].shape}"
+                )
 
     print("datasets built!")
 
@@ -147,7 +127,9 @@ class NFSDataset(torch.utils.data.Dataset):
         try:
             self.db = px.Reader(self.dirpath, lock=False)
         except lmdb.Error as exc:
-            raise FileNotFoundError(f"Dataset {self.dirpath} does not exist, make sure it has been built.") from exc
+            raise FileNotFoundError(
+                f"Dataset {self.dirpath} does not exist, make sure it has been built."
+            ) from exc
 
     def __len__(self):
         return len(self.root_dir)
@@ -172,15 +154,3 @@ class NFSDataset(torch.utils.data.Dataset):
             return str(self.db) + "\n" + format_string
         else:
             return str(self.db)
-
-
-if __name__ == "__main__":
-    build_nfs_dataset(
-        src_dir="/scratch_nvme/jakobj/all-morpho-images/",
-        dest_dir="./data/",
-        config_file="./dataset_config.yml",
-        num_threads=16,
-    )
-
-    dataset = NFSDataset("train", "./data/")
-    print(dataset)

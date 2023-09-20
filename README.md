@@ -10,8 +10,6 @@ install with
 pip install nfsdata@git+https://github.com/jakobottar/nfs-dataset.git
 ```
 
-
-
 ## Usage
 
 ### `build_nfs_dataset`

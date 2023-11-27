@@ -235,14 +235,18 @@ def filter_dataframe(dataframe: pd.DataFrame, filters) -> pd.DataFrame:
     return dataframe
 
 
-def make_lmdb(root: str, name: str, dataframe: pd.DataFrame):
+def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainval"):
     # make dirpath
     dirpath = os.path.join(root, name)
     os.makedirs(dirpath, exist_ok=True)
 
     with px.Writer(dirpath=dirpath, map_size_limit=32000) as db:
         for _, sample in dataframe.iterrows():
-            label = np.array([1])  # TODO: fix this
+            if type == "trainval":
+                label = np.array([int(sample["Label"])])
+            else:  # if ood
+                label = np.array([-1])
+
             image = np.array(Image.open(sample["FileName"]).convert("RGB")).transpose(
                 (2, 0, 1)
             )

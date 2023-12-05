@@ -7,8 +7,20 @@ import pandas as pd
 import pyxis as px
 import tifffile
 from PIL import Image
+from tqdm import tqdm
 
 BUF_SIZE = 65536
+
+
+def random_crop(img, crop_size):
+    """Randomly crop image to crop_size"""
+    assert img.shape[1] >= crop_size[0]
+    assert img.shape[2] >= crop_size[1]
+
+    x = np.random.randint(0, img.shape[1] - crop_size[0] + 1)
+    y = np.random.randint(0, img.shape[2] - crop_size[1] + 1)
+
+    return img[:, x : x + crop_size[0], y : y + crop_size[1]]
 
 
 def get_metadata(full_filename):
@@ -240,8 +252,8 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainv
     dirpath = os.path.join(root, name)
     os.makedirs(dirpath, exist_ok=True)
 
-    with px.Writer(dirpath=dirpath, map_size_limit=32000) as db:
-        for _, sample in dataframe.iterrows():
+    with px.Writer(dirpath=dirpath, map_size_limit=64000) as db:
+        for _, sample in tqdm(dataframe.iterrows(), dynamic_ncols=True):
             if type == "trainval":
                 label = np.array([int(sample["Label"])])
             else:  # if ood
@@ -259,9 +271,32 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainv
             elif sample["Detector"] == "Nova":
                 databar_height = 60
             image = image[:, :-databar_height, :]
-            image = np.array([image])
 
-            db.put_samples("label", label, "image", image)
+            N = 512
+            images = []
+
+            # # cut into NxN patchess
+            # for i in range(
+            #     (image.shape[1] % N) // 2,
+            #     image.shape[1] - ((image.shape[1] % N) // 2) - 1,
+            #     N,
+            # ):
+            #     for j in range(0, image.shape[2], N):
+            #         images.append(image[:, i : i + N, j : j + N])
+
+            # randomly get NxN patches
+            for _ in range(1):
+                images.append(random_crop(image, (N, N)))
+
+            # # save whole image
+            # images.append(image)
+
+            db.put_samples(
+                "label",
+                np.repeat(label, len(images), axis=0),
+                "image",
+                np.array(images),
+            )
 
 
 def format_material(value):

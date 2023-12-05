@@ -63,6 +63,7 @@ def build_nfs_dataset(
     train_val = filter_dataframe(df, dataset_configs["train"]["filters"])
     # TODO: customizable label column
     train_val["Label"] = train_val["StartingMaterial"] + train_val["Material"]
+    print(train_val["Label"].astype("category").cat.categories)
     train_val["Label"] = train_val["Label"].astype("category").cat.codes
     # TODO: provide a back-conversion to original labels
 
@@ -94,7 +95,7 @@ def build_nfs_dataset(
 
     # package datasets into lmdbs
     for dataset in datasets:
-        print(f"Building {dataset['name']} dataset... ", end="", flush=True)
+        print(f"Building {dataset['name']} dataset... ", end="\n", flush=True)
         make_lmdb(dest_dir, dataset["name"], dataset["dataframe"], dataset["type"])
         print_green("done.")
 

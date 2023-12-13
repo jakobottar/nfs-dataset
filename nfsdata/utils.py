@@ -253,15 +253,26 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainv
     os.makedirs(dirpath, exist_ok=True)
 
     with px.Writer(dirpath=dirpath, map_size_limit=64000) as db:
-        for _, sample in tqdm(dataframe.iterrows(), dynamic_ncols=True):
+        for _, sample in tqdm(
+            dataframe.iterrows(), dynamic_ncols=True, total=len(dataframe)
+        ):
             if type == "trainval":
                 label = np.array([int(sample["Label"])])
             else:  # if ood
                 label = np.array([-1])
 
-            image = np.array(Image.open(sample["FileName"]).convert("RGB")).transpose(
-                (2, 0, 1)
-            )
+            image = np.array(Image.open(sample["FileName"]))
+
+            # change dtype if necessary
+            if image.dtype == np.uint16:
+                image = image / 256
+                image = image.astype(np.uint8)
+
+            # convert to RGB if grayscale
+            if len(image.shape) == 2:
+                image = np.array([image, image, image])
+            else:
+                image = image.transpose((2, 0, 1))
 
             # cut off infobar
             if sample["Detector"] == "Helios":
@@ -285,11 +296,14 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainv
             #         images.append(image[:, i : i + N, j : j + N])
 
             # randomly get NxN patches
-            for _ in range(1):
-                images.append(random_crop(image, (N, N)))
+            # for _ in range(10):
+            #     images.append(random_crop(image, (N, N)))
 
             # # save whole image
-            # images.append(image)
+            images.append(image)
+
+            if np.max(image) < 100:
+                warn(f"{sample['FileName']} has max value of {np.max(image)}")
 
             db.put_samples(
                 "label",
@@ -297,6 +311,79 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainv
                 "image",
                 np.array(images),
             )
+
+
+def make_imagefolder(
+    root: str, name: str, dataframe: pd.DataFrame, type: str = "trainval"
+):
+    # make dirpath
+    dirpath = os.path.join(root, name)
+    os.makedirs(dirpath, exist_ok=True)
+
+    # cols should be "filename", "label", "labelstr", "original_filename"
+    image_metadata = []
+
+    iterrows = tqdm(dataframe.iterrows(), dynamic_ncols=True, total=len(dataframe))
+    for _, sample in iterrows:
+        if type == "trainval":
+            label = int(sample["Label"])
+            labelstr = sample["LabelStr"]
+        else:  # if ood
+            label = -1
+            labelstr = "ood"
+
+        image = np.array(Image.open(sample["FileName"]))
+
+        # change dtype if necessary
+        if image.dtype == np.uint16:
+            image = image / 256
+            image = image.astype(np.uint8)
+
+        # convert to RGB if grayscale
+        if len(image.shape) == 2:
+            image = np.array([image, image, image])
+        else:
+            image = image.transpose((2, 0, 1))
+
+        # cut off infobar
+        if sample["Detector"] == "Helios":
+            databar_height = 79
+        elif sample["Detector"] == "Teneo":
+            databar_height = 46
+        elif sample["Detector"] == "Nova":
+            databar_height = 60
+        image = image[:, :-databar_height, :]
+
+        N = 64
+        images = []
+
+        # # cut into NxN patchess
+        for i in range(
+            (image.shape[1] % N) // 2,
+            image.shape[1] - ((image.shape[1] % N) // 2) - 1,
+            N,
+        ):
+            for j in range(0, image.shape[2], N):
+                images.append(image[:, i : i + N, j : j + N])
+
+        # randomly get NxN patches
+        # for _ in range(10):
+        #     images.append(random_crop(image, (N, N)))
+
+        # # save whole image
+        # images.append(image)
+
+        for i, img in enumerate(images):
+            new_filename = f"{sample['Hash'][:16]}-{labelstr}-{i}.png"
+            Image.fromarray(img.transpose((1, 2, 0))).save(
+                os.path.join(dirpath, new_filename)
+            )
+            image_metadata.append([new_filename, label, labelstr, sample["FileName"]])
+
+    df = pd.DataFrame(
+        image_metadata, columns=["filename", "label", "labelstr", "original_filename"]
+    )
+    df.to_csv(os.path.join(dirpath, "metadata.csv"), index=False)
 
 
 def format_material(value):

@@ -301,7 +301,7 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainv
 
             # save whole image
             # images.append(image)
-
+          
             if np.max(image) < 100:
                 warn(f"{sample['FileName']} has max value of {np.max(image)}")
 

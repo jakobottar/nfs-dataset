@@ -283,7 +283,7 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainv
                 databar_height = 60
             image = image[:, :-databar_height, :]
 
-            N = 512
+            N = 256
             images = []
 
             # # cut into NxN patchess
@@ -296,12 +296,12 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainv
             #         images.append(image[:, i : i + N, j : j + N])
 
             # randomly get NxN patches
-            # for _ in range(10):
-            #     images.append(random_crop(image, (N, N)))
+            for _ in range(10):
+                images.append(random_crop(image, (N, N)))
 
-            # # save whole image
-            images.append(image)
-
+            # save whole image
+            # images.append(image)
+          
             if np.max(image) < 100:
                 warn(f"{sample['FileName']} has max value of {np.max(image)}")
 
@@ -354,21 +354,21 @@ def make_imagefolder(
             databar_height = 60
         image = image[:, :-databar_height, :]
 
-        N = 64
+        N = 256
         images = []
 
         # # cut into NxN patchess
-        for i in range(
-            (image.shape[1] % N) // 2,
-            image.shape[1] - ((image.shape[1] % N) // 2) - 1,
-            N,
-        ):
-            for j in range(0, image.shape[2], N):
-                images.append(image[:, i : i + N, j : j + N])
+        # for i in range(
+        #     (image.shape[1] % N) // 2,
+        #     image.shape[1] - ((image.shape[1] % N) // 2) - 1,
+        #     N,
+        # ):
+        #     for j in range(0, image.shape[2], N):
+        #         images.append(image[:, i : i + N, j : j + N])
 
         # randomly get NxN patches
-        # for _ in range(10):
-        #     images.append(random_crop(image, (N, N)))
+        for _ in range(10):
+            images.append(random_crop(image, (N, N)))
 
         # # save whole image
         # images.append(image)

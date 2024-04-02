@@ -247,7 +247,9 @@ def filter_dataframe(dataframe: pd.DataFrame, filters) -> pd.DataFrame:
     return dataframe
 
 
-def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainval"):
+def make_lmdb(
+    root: str, name: str, dataframe: pd.DataFrame, configs: dict, type: str = "trainval"
+):
     # make dirpath
     dirpath = os.path.join(root, name)
     os.makedirs(dirpath, exist_ok=True)
@@ -283,25 +285,31 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainv
                 databar_height = 60
             image = image[:, :-databar_height, :]
 
-            N = 256
+            N = configs["image_size"]
             images = []
 
-            # # cut into NxN patchess
-            # for i in range(
-            #     (image.shape[1] % N) // 2,
-            #     image.shape[1] - ((image.shape[1] % N) // 2) - 1,
-            #     N,
-            # ):
-            #     for j in range(0, image.shape[2], N):
-            #         images.append(image[:, i : i + N, j : j + N])
+            match configs["crop_type"]:
+                case "random":
+                    # randomly get NxN patches
+                    for _ in range(10):
+                        images.append(random_crop(image, (N, N)))
 
-            # randomly get NxN patches
-            for _ in range(10):
-                images.append(random_crop(image, (N, N)))
+                case "grid":
+                    # cut into NxN patches
+                    for i in range(
+                        (image.shape[1] % N) // 2,
+                        image.shape[1] - ((image.shape[1] % N) // 2) - 1,
+                        N,
+                    ):
+                        for j in range(0, image.shape[2], N):
+                            images.append(image[:, i : i + N, j : j + N])
 
-            # save whole image
-            # images.append(image)
-          
+                case "whole":
+                    images.append(image)
+
+                case _:
+                    error("Invalid crop type")
+
             if np.max(image) < 100:
                 warn(f"{sample['FileName']} has max value of {np.max(image)}")
 
@@ -314,7 +322,7 @@ def make_lmdb(root: str, name: str, dataframe: pd.DataFrame, type: str = "trainv
 
 
 def make_imagefolder(
-    root: str, name: str, dataframe: pd.DataFrame, type: str = "trainval"
+    root: str, name: str, dataframe: pd.DataFrame, configs: dict, type: str = "trainval"
 ):
     # make dirpath
     dirpath = os.path.join(root, name)
@@ -354,24 +362,30 @@ def make_imagefolder(
             databar_height = 60
         image = image[:, :-databar_height, :]
 
-        N = 256
+        N = configs["image_size"]
         images = []
 
-        # # cut into NxN patchess
-        # for i in range(
-        #     (image.shape[1] % N) // 2,
-        #     image.shape[1] - ((image.shape[1] % N) // 2) - 1,
-        #     N,
-        # ):
-        #     for j in range(0, image.shape[2], N):
-        #         images.append(image[:, i : i + N, j : j + N])
+        match configs["crop_type"]:
+            case "random":
+                # randomly get NxN patches
+                for _ in range(10):
+                    images.append(random_crop(image, (N, N)))
 
-        # randomly get NxN patches
-        for _ in range(10):
-            images.append(random_crop(image, (N, N)))
+            case "grid":
+                # cut into NxN patches
+                for i in range(
+                    (image.shape[1] % N) // 2,
+                    image.shape[1] - ((image.shape[1] % N) // 2) - 1,
+                    N,
+                ):
+                    for j in range(0, image.shape[2], N):
+                        images.append(image[:, i : i + N, j : j + N])
 
-        # # save whole image
-        # images.append(image)
+            case "whole":
+                images.append(image)
+
+            case _:
+                error("Invalid crop type")
 
         for i, img in enumerate(images):
             new_filename = f"{sample['Hash'][:16]}-{labelstr}-{i}.png"

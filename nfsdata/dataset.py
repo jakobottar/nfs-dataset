@@ -28,7 +28,7 @@ from .utils import (
 
 def build_nfs_datasets(
     src_dir: str,
-    config_file: str,
+    dataset_configs: dict,
     num_threads: int = 4,
 ) -> None:
     """
@@ -59,17 +59,13 @@ def build_nfs_datasets(
     df = df.drop_duplicates(subset="Hash", keep="first")
     print_green("done.")
 
-    # read config file
-    print("Reading config file... ", end="", flush=True)
-    with open(config_file, "r") as file:
-        dataset_configs = yaml.full_load(file)  # TODO: make safe
-    print_green("done.")
-
     # filter train/val datasets
     print("Filtering train/val datasets... ", end="", flush=True)
     train_val = filter_dataframe(df, dataset_configs["train"]["filters"])
     # TODO: customizable label column
-    train_val["Label"] = train_val["StartingMaterial"] + train_val["Material"]
+    # train_val["Label"] = train_val["StartingMaterial"] + train_val["Material"]
+    train_val["Label"] = train_val["Material"]
+    # train_val["Label"] = train_val["StartingMaterial"]
     print(train_val["Label"].astype("category").cat.categories)
     train_val["LabelStr"] = train_val["Label"].astype("category")
     train_val["Label"] = train_val["Label"].astype("category").cat.codes
@@ -104,15 +100,31 @@ def build_nfs_datasets(
     return datasets
 
 
-def build_lmdb_datasets(
-    src_dir: str, dest_dir: str, config_file: str, num_threads: int = 4
-) -> None:
-    datasets = build_nfs_datasets(src_dir, config_file, num_threads)
+def build_lmdb_datasets(config_file: str, num_threads: int = 4) -> None:
+    # read config file
+    print("Reading config file... ", end="", flush=True)
+    with open(config_file, "r") as file:
+        configs = yaml.full_load(file)
+        # split configs into dataset configs and other configs
+        dataset_configs = configs["datasets"]
+        del configs["datasets"]
+    print_green("done.")
+
+    src_dir = configs["src_dir"]
+    dest_dir = configs["dest_dir"]
+
+    datasets = build_nfs_datasets(src_dir, dataset_configs, num_threads)
 
     # package datasets into lmdbs
     for dataset in datasets:
         print(f"Building {dataset['name']} dataset... ", end="\n", flush=True)
-        make_lmdb(dest_dir, dataset["name"], dataset["dataframe"], dataset["type"])
+        make_lmdb(
+            root=dest_dir,
+            name=dataset["name"],
+            dataframe=dataset["dataframe"],
+            configs=configs,
+            type=dataset["type"],
+        )
         print_green("done.")
 
     # verify datasets
@@ -128,16 +140,31 @@ def build_lmdb_datasets(
     print("datasets built!")
 
 
-def build_imagefolder_datasets(
-    src_dir: str, dest_dir: str, config_file: str, num_threads: int = 4
-) -> None:
-    datasets = build_nfs_datasets(src_dir, config_file, num_threads)
+def build_imagefolder_datasets(config_file: str, num_threads: int = 4) -> None:
+
+    # read config file
+    print("Reading config file... ", end="", flush=True)
+    with open(config_file, "r") as file:
+        configs = yaml.full_load(file)
+        # split configs into dataset configs and other configs
+        dataset_configs = configs["datasets"]
+        del configs["datasets"]
+    print_green("done.")
+
+    src_dir = configs["src_dir"]
+    dest_dir = configs["dest_dir"]
+
+    datasets = build_nfs_datasets(src_dir, dataset_configs, num_threads)
 
     # create image folders with data and labels
     for dataset in datasets:
         print(f"Building {dataset['name']} dataset... ", end="\n", flush=True)
         make_imagefolder(
-            dest_dir, dataset["name"], dataset["dataframe"], dataset["type"]
+            root=dest_dir,
+            name=dataset["name"],
+            dataframe=dataset["dataframe"],
+            configs=configs,
+            type=dataset["type"],
         )
         print_green("done.")
 

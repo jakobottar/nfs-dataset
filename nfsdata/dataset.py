@@ -59,14 +59,18 @@ def build_nfs_datasets(
     df = df.drop_duplicates(subset="Hash", keep="first")
     print_green("done.")
 
+    # save df as a csv
+    df.to_csv("dataset.csv", index=False)
+
     # filter train/val datasets
     print("Filtering train/val datasets... ", end="", flush=True)
     train_val = filter_dataframe(df, dataset_configs["train"]["filters"])
     # TODO: customizable label column
-    # train_val["Label"] = train_val["StartingMaterial"] + train_val["Material"]
-    train_val["Label"] = train_val["Material"]
+    train_val["Label"] = train_val["StartingMaterial"] + train_val["Material"]
+    # train_val["Label"] = train_val["Material"]
     # train_val["Label"] = train_val["StartingMaterial"]
     print(train_val["Label"].astype("category").cat.categories)
+    print(train_val["Label"].astype("category").cat.codes)
     train_val["LabelStr"] = train_val["Label"].astype("category")
     train_val["Label"] = train_val["Label"].astype("category").cat.codes
     # TODO: provide a back-conversion to original labels

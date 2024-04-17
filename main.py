@@ -11,7 +11,7 @@ nfsdata.build_imagefolder_datasets(
 
 dataset = nfsdata.ImageFolderDataset(
     "train",
-    "./data/end-material/",
+    "./data/routes/",
 )
 
 print(len(dataset))

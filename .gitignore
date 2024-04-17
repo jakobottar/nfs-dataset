@@ -6,3 +6,5 @@ examples/
 dataset_config.yml
 data/
 sample.png
+xrd_datasets/
+tmp/

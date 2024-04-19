@@ -69,18 +69,19 @@ def build_nfs_datasets(
     train_val["Label"] = train_val["StartingMaterial"] + train_val["Material"]
     # train_val["Label"] = train_val["Material"]
     # train_val["Label"] = train_val["StartingMaterial"]
-    print(train_val["Label"].astype("category").cat.categories)
+    print(list(train_val["Label"].astype("category").cat.categories))
     print(train_val["Label"].astype("category").cat.codes)
+    print(f"num classes{len(train_val['Label'].astype('category').cat.categories)}")
     train_val["LabelStr"] = train_val["Label"].astype("category")
     train_val["Label"] = train_val["Label"].astype("category").cat.codes
     # TODO: provide a back-conversion to original labels
 
+    exit(-1)
+
     # make train/val split
     train_val = train_val.sample(frac=1).reset_index(drop=True)
     val = train_val.iloc[: int(len(train_val) * dataset_configs["train"]["val-split"])]
-    train = train_val.iloc[
-        int(len(train_val) * dataset_configs["train"]["val-split"]) :
-    ]
+    train = train_val.iloc[int(len(train_val) * dataset_configs["train"]["val-split"]) :]
 
     datasets = [
         {"name": "train", "dataframe": train, "type": "trainval"},
@@ -137,9 +138,7 @@ def build_lmdb_datasets(config_file: str, num_threads: int = 4) -> None:
             print(f"{dataset}:\n    number of samples: {len(db)}")
             sample = db.get_sample(17)
             for key in db.get_data_keys():
-                print(
-                    f"    '{key}' <- dtype: {sample[key].dtype}, shape: {sample[key].shape}"
-                )
+                print(f"    '{key}' <- dtype: {sample[key].dtype}, shape: {sample[key].shape}")
 
     print("datasets built!")
 
@@ -204,9 +203,7 @@ class NFSDataset(torch.utils.data.Dataset):
         try:
             self.db = px.Reader(self.dirpath, lock=False)
         except lmdb.Error as exc:
-            raise FileNotFoundError(
-                f"Dataset {self.dirpath} does not exist, make sure it has been built."
-            ) from exc
+            raise FileNotFoundError(f"Dataset {self.dirpath} does not exist, make sure it has been built.") from exc
 
     def __len__(self):
         return len(self.db)
@@ -252,18 +249,14 @@ class ImageFolderDataset(torch.utils.data.Dataset):
         try:
             self.df = pd.read_csv(os.path.join(self.dirpath, "metadata.csv"))
         except lmdb.Error as exc:
-            raise FileNotFoundError(
-                f"Dataset {self.dirpath} does not exist, make sure it has been built."
-            ) from exc
+            raise FileNotFoundError(f"Dataset {self.dirpath} does not exist, make sure it has been built.") from exc
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, key):
         data = self.df.iloc[key].to_dict()
-        data["image"] = Image.open(
-            os.path.join(self.dirpath, data["filename"])
-        ).convert("RGB")
+        data["image"] = Image.open(os.path.join(self.dirpath, data["filename"])).convert("RGB")
 
         if self.transform:
             data["image"] = self.transform(data["image"])

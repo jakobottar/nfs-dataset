@@ -15,12 +15,18 @@ import zipfile
 
 import numpy as np
 import pandas as pd
+from PIL import Image
+
+from .utils import get_hash, random_crop
 
 COLS = "?,??,TwoTheta,Theta,Intensity"
 ## interpolation constants
 X_MIN = 10
 X_MAX = 70
 NUM_POINTS = 4096
+
+IMAGE_SIZE = 256
+NUM_CROPS = 1
 
 
 def parse_xml_file(filename) -> pd.DataFrame:
@@ -168,26 +174,74 @@ def process_paired_dataset(dataset: pd.DataFrame, xrd_src_dir, dest_dir) -> pd.D
     make final dataframe with new locations for files
     """
 
+    # make directories
+    os.makedirs(os.path.join(dest_dir, "xrd"), exist_ok=True)
+    os.makedirs(os.path.join(dest_dir, "sem"), exist_ok=True)
+
+    new_dataset = []
     for _, sample in tqdm(dataset.iterrows(), dynamic_ncols=True, total=len(dataset)):
         ### process XRD file
         xrd_file = sample["xrd_file"]
 
-        if xrd_file.endswith(".brml"):
-            xrd_data = read_brml(os.path.join(xrd_src_dir, xrd_file))
-        elif xrd_file.endswith(".txt") or xrd_file.endswith(".csv"):
-            xrd_data = read_txt(os.path.join(xrd_src_dir, xrd_file))
-        xrd_data = process_xrd_data(xrd_data)
+        # get hash of xrd file
+        xrd_hash = get_hash(os.path.join(xrd_src_dir, xrd_file))
+        processed_xrd_filename = f"xrd/{xrd_hash[:16]}-{sample['route']}.npy"
 
-        # drop "twotheta" column and convert to numpy
-        xrd_data = xrd_data.drop(columns=["TwoTheta"])
-        xrd_data = xrd_data.to_numpy().transpose(1, 0).astype(np.float32)
+        # check if file is already processed
+        if not os.path.exists(os.path.join(dest_dir, processed_xrd_filename)):
 
-        # save data to disk
-        # np.save("xrd.npy", xrd_data)
-        # print(np.load("xrd.npy"))
+            if xrd_file.endswith(".brml"):
+                xrd_data = read_brml(os.path.join(xrd_src_dir, xrd_file))
+            elif xrd_file.endswith(".txt") or xrd_file.endswith(".csv"):
+                xrd_data = read_txt(os.path.join(xrd_src_dir, xrd_file))
+            xrd_data = process_xrd_data(xrd_data)
+
+            # drop "twotheta" column and convert to numpy
+            xrd_data = xrd_data.drop(columns=["TwoTheta"])
+            xrd_data = xrd_data.to_numpy().transpose(1, 0).astype(np.float32)
+
+            # save data to disk
+            np.save(os.path.join(dest_dir, processed_xrd_filename), xrd_data)
 
         ### process SEM image
-        # TODO: process SEM image
+        sem_hash = get_hash(sample["sem_file"])
+
+        # load image
+        image = np.array(Image.open(sample["sem_file"]))
+
+        # change dtype if necessary
+        if image.dtype == np.uint16:
+            image = image / 256
+            image = image.astype(np.uint8)
+
+        # convert to RGB if grayscale
+        if len(image.shape) == 2:
+            image = np.array([image, image, image])
+        else:
+            image = image.transpose((2, 0, 1))
+
+        # cut off infobar
+        image = image[:, :-60, :]
+
+        # randomly get NxN crops
+        for i in range(NUM_CROPS):
+            cropped_image = random_crop(image, (IMAGE_SIZE, IMAGE_SIZE))
+            processed_sem_filename = f"sem/{sem_hash[:16]}-{sample['route']}-{i}.png"
+            Image.fromarray(cropped_image.transpose((1, 2, 0))).save(os.path.join(dest_dir, processed_sem_filename))
+
+            # add to dataset
+            new_dataset.append(
+                {
+                    "route": sample["route"],
+                    "finalmat": sample["finalmat"],
+                    "xrd_file": processed_xrd_filename,
+                    "sem_file": processed_sem_filename,
+                }
+            )
+
+    df = pd.DataFrame(new_dataset)
+    df.to_csv(os.path.join(dest_dir, "metadata.csv"), index=False)
+    return df
 
 
 def make_paired_dataset(root_dir: str, dest_dir: str) -> None:
@@ -209,11 +263,11 @@ def make_paired_dataset(root_dir: str, dest_dir: str) -> None:
     print(val_data)
     print(train_data)
 
+    # make directories
+    os.makedirs(os.path.join(dest_dir, "val"), exist_ok=True)
+    os.makedirs(os.path.join(dest_dir, "train"), exist_ok=True)
+
     # process datasets
     print("Processing datasets...")
     process_paired_dataset(val_data, "../magni/data", os.path.join(dest_dir, "val"))
     process_paired_dataset(train_data, "../magni/data", os.path.join(dest_dir, "train"))
-
-
-if __name__ == "__main__":
-    make_paired_dataset("./xrd_datasets", "data")

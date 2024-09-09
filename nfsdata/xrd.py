@@ -4,9 +4,10 @@ import os
 from random import shuffle
 
 import pandas as pd
+import torch
 from tqdm import tqdm
 
-VAL_PERC = 0.2
+VAL_PERC = 0.30
 
 import io
 import os
@@ -26,7 +27,7 @@ X_MAX = 70
 NUM_POINTS = 4096
 
 IMAGE_SIZE = 256
-NUM_CROPS = 1
+NUM_CROPS = 10
 
 
 def parse_xml_file(filename) -> pd.DataFrame:
@@ -130,17 +131,19 @@ def process_xrd_data(data: pd.DataFrame) -> pd.DataFrame:
     data["Intensity"] = data["Intensity"] - data["Intensity"].min()
 
     ## drop datapoints greather than 70 degrees or less than 10 degrees
-    data = data[(data["TwoTheta"] >= 10) & (data["TwoTheta"] <= 70)]
+    data = data[(data["TwoTheta"] >= X_MIN) & (data["TwoTheta"] <= X_MAX)]
 
-    ## interpolate the data to match a standard range of 10 to 90 degrees
-    x = np.linspace(X_MIN, X_MAX, NUM_POINTS)  # delta of 0.1953125 degrees
+    ## interpolate the data to match a standard range of 10 to 70 degrees
+    x = np.linspace(X_MIN, X_MAX, NUM_POINTS)
     y = np.interp(x, data["TwoTheta"], data["Intensity"])
 
     # copy data to new dataframe
     data = pd.DataFrame({"TwoTheta": x, "Intensity": y})
 
     ## normalize the intensity by integrating the area under the curve
-    data["Intensity"] = data["Intensity"] / data["Intensity"].sum()
+    auc = np.trapz(data["Intensity"], data["TwoTheta"])
+    data["Intensity"] = data["Intensity"] / auc
+    # print(np.trapz(data["Intensity"], data["TwoTheta"]))
 
     return data
 
@@ -253,12 +256,20 @@ def make_paired_dataset(root_dir: str, dest_dir: str) -> None:
             paired_data.extend(json.loads(f.read()))
 
     # split into train and val sets
-    shuffle(paired_data)
+    paired_data = make_paired_dataframe(paired_data)
+
+    paired_data = paired_data.sample(frac=1).reset_index(drop=True)
     val_data = paired_data[: int(len(paired_data) * VAL_PERC)]
     train_data = paired_data[int(len(paired_data) * VAL_PERC) :]
 
-    val_data = make_paired_dataframe(val_data)
-    train_data = make_paired_dataframe(train_data)
+    # get unique route values from data
+    val_routes = val_data["route"].unique()
+    train_routes = train_data["route"].unique()
+
+    print(f"Val routes: {len(val_routes)}, Train routes: {len(train_routes)}")
+
+    # val_data = make_paired_dataframe(val_data)
+    # train_data = make_paired_dataframe(train_data)
 
     print(val_data)
     print(train_data)
@@ -269,5 +280,85 @@ def make_paired_dataset(root_dir: str, dest_dir: str) -> None:
 
     # process datasets
     print("Processing datasets...")
-    process_paired_dataset(val_data, "../magni/data", os.path.join(dest_dir, "val"))
-    process_paired_dataset(train_data, "../magni/data", os.path.join(dest_dir, "train"))
+    process_paired_dataset(val_data, root_dir, os.path.join(dest_dir, "val"))
+    process_paired_dataset(train_data, root_dir, os.path.join(dest_dir, "train"))
+
+
+ROUTES = [
+    "U3O8AUC",
+    "U3O8MDU",
+    "U3O8SDU",
+    "U3O8UO4",
+    "UO2AUCd",
+    "UO2AUCi",
+    "UO2MDU",
+    "UO2SDU",
+    "UO2UO4",
+    "UO3AUC",
+    "UO3MDU",
+    "UO3SDU",
+    "UO3UO4",
+]
+
+FINALMATS = ["U3O8", "UO2", "UO3"]
+
+
+class PairedDataset(torch.utils.data.Dataset):
+    def __init__(self, root: str, split: str = "train", sem_transform=None, xrd_transform=None, mode="paired"):
+        self.root = root
+        self.split = split
+        self.sem_transform = sem_transform
+        self.xrd_transform = xrd_transform
+        self.mode = mode  # can be 'paired', 'sem', 'xrd'
+
+        # load dataset metadata file
+        try:
+            self.df = pd.read_csv(os.path.join(self.root, split, "metadata.csv"))
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"Dataset {self.root} does not exist, make sure it has been built.") from exc
+
+        if self.mode == "paired":
+            # convert route to label
+            self.df["label"] = self.df["route"].apply(ROUTES.index)
+        elif self.mode == "sem":
+            # convert route to label
+            self.df["label"] = self.df["route"].apply(ROUTES.index)
+        elif self.mode == "xrd":
+            # convert route to label
+            self.df["label"] = self.df["finalmat"].apply(FINALMATS.index)
+            # drop duplicates of xrd_file column
+            self.df = self.df.drop_duplicates(subset=["xrd_file"])
+        else:
+            raise ValueError(f"Invalid mode: {self.mode}")
+
+        self.classes = FINALMATS if self.mode == "xrd" else ROUTES
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        sample = self.df.iloc[idx]
+
+        # get sample
+        if self.mode == "paired" or self.mode == "sem":
+            sem = Image.open(os.path.join(self.root, self.split, sample["sem_file"])).convert("RGB")
+            if self.sem_transform:
+                sem = self.sem_transform(sem)
+        if self.mode == "paired" or self.mode == "xrd":
+            xrd = np.load(os.path.join(self.root, self.split, sample["xrd_file"]))
+            if self.xrd_transform:
+                xrd = self.xrd_transform(xrd)
+
+        # get label
+        label = np.int64(sample["label"])
+
+        # return data
+        if self.mode == "xrd":
+            return xrd, label
+        elif self.mode == "sem":
+            return sem, label
+        else:  # paired mode
+            return xrd, sem, label
+
+    def __repr__(self):
+        return f"PairedDataset: {self.split} split with {self.__len__()} samples"

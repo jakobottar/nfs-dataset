@@ -76,8 +76,6 @@ def build_nfs_datasets(
     train_val["Label"] = train_val["Label"].astype("category").cat.codes
     # TODO: provide a back-conversion to original labels
 
-    exit(-1)
-
     # make train/val split
     train_val = train_val.sample(frac=1).reset_index(drop=True)
     val = train_val.iloc[: int(len(train_val) * dataset_configs["train"]["val-split"])]

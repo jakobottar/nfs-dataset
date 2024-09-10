@@ -6,10 +6,25 @@ import numpy as np
 import pandas as pd
 import pyxis as px
 import tifffile
+import yaml
 from PIL import Image
 from tqdm import tqdm
 
 BUF_SIZE = 65536
+
+
+def parse_config_file(filename: str) -> dict:
+    """parse yaml config file"""
+    with open(filename, "r") as file:
+        config = yaml.load(file, Loader=yaml.FullLoader)
+
+    new_config = []
+    for x in config:
+        tmp_config = {"name": x}
+        tmp_config.update(config[x])
+        new_config.append(tmp_config)
+
+    return new_config
 
 
 def random_crop(img, crop_size):

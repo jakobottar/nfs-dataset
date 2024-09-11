@@ -223,15 +223,20 @@ def get_metadata(full_filename):
     metadata["Hash"] = get_hash(full_filename)
 
     # cut off infobar
-    if metadata["Detector"] == "Helios":
-        databar_height = 79
-    elif metadata["Detector"] == "Teneo":
-        databar_height = 46
-    elif metadata["Detector"] == "Nova":
-        databar_height = 60
-    else: # catch mistakes or errors
-        databar_height = 0
-    metadata["Databar_Height"] = databar_height
+    match metadata["Detector"]:
+        case "Helios":
+            dbh = 79
+        case "Teneo":
+            dbh = 46
+        case "Nova":
+            dbh = 60
+        case "Quanta":
+            dbh = 59
+        case "Quattro":
+            dbh = 0
+        case _:  # catch mistakes or errors
+            dbh = 0
+    metadata["Databar_Height"] = dbh
 
     return metadata
 

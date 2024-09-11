@@ -9,9 +9,11 @@ import os
 from glob import glob
 from multiprocessing import Pool
 
+import numpy as np
 import pandas as pd
 import torch
 from pandas import DataFrame
+from PIL import Image
 
 from .utils import filter_dataframe, get_metadata, print_green
 
@@ -94,10 +96,33 @@ class NFSDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.df)
 
+    def __load_image(self, datarow):
+
+        filename = datarow["FileName"]
+        databar_height = datarow["Databar_Height"]
+
+        image = np.array(Image.open(filename))
+
+        # change dtype if necessary
+        if image.dtype == np.uint16:
+            image = image / 256
+            image = image.astype(np.uint8)
+
+        # convert to RGB if grayscale
+        if len(image.shape) == 2:
+            image = np.array([image, image, image])
+        else:
+            image = image.transpose((2, 0, 1))
+
+        # cut off infobar
+        image = image[:, :-databar_height, :]
+
+        return image
+
     def __getitem__(self, key):
         data = self.df.iloc[key].to_dict()
 
-        # todo: load and preprocess image
-        image = None
+        # load and preprocess image
+        image = self.__load_image(data)
 
         return image, torch.tensor(data["Label"])

@@ -1,3 +1,5 @@
+from torch.utils.data import DataLoader
+
 import nfsdata
 
 # make csv file
@@ -9,3 +11,9 @@ configs = nfsdata.parse_config_file("./dataset_config.yaml")
 # make datasets
 datasets = nfsdata.build_nfs_datasets(configs)
 print(datasets)
+
+for dataset in datasets:
+    train_dataloader = DataLoader(dataset["train_dataset"], batch_size=4)
+
+    batch = next(iter(train_dataloader))
+    print(batch)

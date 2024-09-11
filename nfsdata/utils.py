@@ -222,6 +222,17 @@ def get_metadata(full_filename):
     # generate file hash
     metadata["Hash"] = get_hash(full_filename)
 
+    # cut off infobar
+    if metadata["Detector"] == "Helios":
+        databar_height = 79
+    elif metadata["Detector"] == "Teneo":
+        databar_height = 46
+    elif metadata["Detector"] == "Nova":
+        databar_height = 60
+    else: # catch mistakes or errors
+        databar_height = 0
+    metadata["Databar_Height"] = databar_height
+
     return metadata
 
 

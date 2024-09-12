@@ -5,6 +5,6 @@ __pycache__
 examples/
 dataset_config.yaml
 data/
-sample.png
+*.png
 xrd_datasets/
 tmp/

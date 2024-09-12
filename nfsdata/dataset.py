@@ -125,4 +125,7 @@ class NFSDataset(torch.utils.data.Dataset):
         # load and preprocess image
         image = self.__load_image(data)
 
+        if self.transform:
+            image = self.transform(image)
+
         return image, torch.tensor(data["Label"])

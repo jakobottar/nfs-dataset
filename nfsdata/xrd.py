@@ -1,22 +1,17 @@
 import glob
-import json
-import os
-from random import shuffle
-
-import pandas as pd
-import torch
-from tqdm import tqdm
-
-VAL_PERC = 0.30
-
 import io
+import itertools
+import json
 import os
 import xml.etree.ElementTree as ET
 import zipfile
+from math import ceil
 
 import numpy as np
 import pandas as pd
+import torch
 from PIL import Image
+from tqdm import tqdm
 
 from .utils import get_hash, random_crop
 
@@ -235,6 +230,7 @@ def process_paired_dataset(dataset: pd.DataFrame, xrd_src_dir, dest_dir) -> pd.D
             # add to dataset
             new_dataset.append(
                 {
+                    "fold": sample["fold"],
                     "route": sample["route"],
                     "finalmat": sample["finalmat"],
                     "xrd_file": processed_xrd_filename,
@@ -249,39 +245,39 @@ def process_paired_dataset(dataset: pd.DataFrame, xrd_src_dir, dest_dir) -> pd.D
 
 def make_paired_dataset(root_dir: str, dest_dir: str) -> None:
 
+    NUM_FOLDS = 5
+
     # combine all json files in root_dir into one json file
     paired_data = []
     for fn in glob.glob(f"{root_dir}/*.json"):
         with open(fn, "r") as f:
             paired_data.extend(json.loads(f.read()))
 
-    # split into train and val sets
+    # make dataframe and shuffle
     paired_data = make_paired_dataframe(paired_data)
-
     paired_data = paired_data.sample(frac=1).reset_index(drop=True)
-    val_data = paired_data[: int(len(paired_data) * VAL_PERC)]
-    train_data = paired_data[int(len(paired_data) * VAL_PERC) :]
+
+    # list of fold numbers and number of times to repeat the list
+    lst = range(1, NUM_FOLDS + 1)
+    num_repeats = ceil(len(paired_data) / NUM_FOLDS)
+    # repeat the list and truncate to the length of the data
+    folds = list(itertools.chain.from_iterable(itertools.repeat(x, num_repeats) for x in lst))[: len(paired_data)]
+
+    # add fold column to dataframe
+    paired_data["fold"] = folds
 
     # get unique route values from data
-    val_routes = val_data["route"].unique()
-    train_routes = train_data["route"].unique()
+    routes = paired_data["route"].unique()
+    print(f"Routes: {len(routes)}")
 
-    print(f"Val routes: {len(val_routes)}, Train routes: {len(train_routes)}")
-
-    # val_data = make_paired_dataframe(val_data)
-    # train_data = make_paired_dataframe(train_data)
-
-    print(val_data)
-    print(train_data)
+    print(paired_data)
 
     # make directories
-    os.makedirs(os.path.join(dest_dir, "val"), exist_ok=True)
-    os.makedirs(os.path.join(dest_dir, "train"), exist_ok=True)
+    os.makedirs(os.path.join(dest_dir), exist_ok=True)
 
     # process datasets
-    print("Processing datasets...")
-    process_paired_dataset(val_data, root_dir, os.path.join(dest_dir, "val"))
-    process_paired_dataset(train_data, root_dir, os.path.join(dest_dir, "train"))
+    print("Processing dataset...")
+    process_paired_dataset(paired_data, root_dir, dest_dir)
 
 
 ROUTES = [

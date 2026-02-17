@@ -1,6 +1,7 @@
 import hashlib
 import os
 import re
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -110,7 +111,11 @@ def get_metadata(full_filename):
     # format detector, done in tif metadata section
 
     # format coating
-    # TODO
+    # TODO: normalize coating values - inconsistent naming:
+    #   - 'AuPd' vs 'Au-Pd' (hyphen inconsistency)
+    #   - 'NoCoat' vs 'NoCoat-5-3-IPA' vs 'NoCoat-3-1-Hex' (suffix variations)
+    #   - Various detector-specific values like 'Nova-TLD-SE'
+    #   Consider standardizing to base coating type for filtering consistency
 
     # format particle
     particle_str = metadata["Particle"].lower()
@@ -129,10 +134,6 @@ def get_metadata(full_filename):
 
     metadata["Replicate"] = rep_str
 
-    # format image
-    # format date
-    # TODO: on some images, these fields are flipped. Get image capture date from metadata
-
     # read tif metadata
     metadata["DetectorMode"] = "NA"  # place this if file read breaks
     try:
@@ -143,6 +144,26 @@ def get_metadata(full_filename):
                 system_name = tif.fei_metadata["System"]["SystemType"]
             except KeyError:
                 system_name = "unknown"
+
+            # format date - extract from TIF metadata
+            try:
+                # First try PrivateFei TimeOfCreation format: '23.06.2016 21:52:26'
+                if "PrivateFei" in tif.fei_metadata and "TimeOfCreation" in tif.fei_metadata["PrivateFei"]:
+                    date_str = tif.fei_metadata["PrivateFei"]["TimeOfCreation"]
+                    dt = datetime.strptime(date_str, "%d.%m.%Y %H:%M:%S")
+                    metadata["Date"] = dt.strftime("%Y-%m-%d %H:%M:%S")
+                # Try User Date and Time format: '06/23/2016' and '09:52:26 PM'
+                elif (
+                    "User" in tif.fei_metadata
+                    and "Date" in tif.fei_metadata["User"]
+                    and "Time" in tif.fei_metadata["User"]
+                ):
+                    date_str = tif.fei_metadata["User"]["Date"]
+                    time_str = tif.fei_metadata["User"]["Time"]
+                    dt = datetime.strptime(f"{date_str} {time_str}", "%m/%d/%Y %I:%M:%S %p")
+                    metadata["Date"] = dt.strftime("%Y-%m-%d %H:%M:%S")
+            except (KeyError, ValueError):
+                pass
 
             # format detector mode
             if detector_mode in ["BSE", "SE"]:

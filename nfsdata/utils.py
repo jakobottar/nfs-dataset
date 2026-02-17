@@ -111,7 +111,11 @@ def get_metadata(full_filename):
     # format detector, done in tif metadata section
 
     # format coating
-    # TODO
+    # TODO: normalize coating values - inconsistent naming:
+    #   - 'AuPd' vs 'Au-Pd' (hyphen inconsistency)
+    #   - 'NoCoat' vs 'NoCoat-5-3-IPA' vs 'NoCoat-3-1-Hex' (suffix variations)
+    #   - Various detector-specific values like 'Nova-TLD-SE'
+    #   Consider standardizing to base coating type for filtering consistency
 
     # format particle
     particle_str = metadata["Particle"].lower()

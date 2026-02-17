@@ -65,10 +65,19 @@ def build_nfs_datasets(
     # filter train/val datasets
     print("Filtering train/val datasets... ", end="", flush=True)
     train_val = filter_dataframe(df, dataset_configs["train"]["filters"])
-    # TODO: customizable label column
-    train_val["Label"] = train_val["StartingMaterial"] + train_val["Material"]
-    # train_val["Label"] = train_val["Material"]
-    # train_val["Label"] = train_val["StartingMaterial"]
+
+    # Get label column(s) from config
+    label_spec = dataset_configs["train"]["label"]
+    if "+" in label_spec:
+        # Concatenate multiple columns
+        label_cols = label_spec.split("+")
+        train_val["Label"] = train_val[label_cols[0]].astype(str)
+        for col in label_cols[1:]:
+            train_val["Label"] = train_val["Label"] + train_val[col].astype(str)
+    else:
+        # Single column
+        train_val["Label"] = train_val[label_spec]
+
     print(list(train_val["Label"].astype("category").cat.categories))
     print(train_val["Label"].astype("category").cat.codes)
     print(f"num classes{len(train_val['Label'].astype('category').cat.categories)}")

@@ -7,10 +7,10 @@ from tqdm import tqdm
 
 import nfsdata
 
-# nfsdata.build_imagefolder_datasets(
-#     config_file="./dataset_config.yml",
-#     num_threads=16,
-# )
+nfsdata.build_imagefolder_datasets(
+    config_file="./dataset_config.yml",
+    num_threads=8,
+)
 
 # dataset = nfsdata.ImageFolderDataset(
 #     "train",
@@ -31,7 +31,7 @@ import nfsdata
 
 # print(dataset)
 
-nfsdata.make_paired_dataset("/scratch_nvme/jakobj/nfs/xrd-routes", "data/paired-xrd-sem")
+# nfsdata.make_paired_dataset("/home/jakobj/data/box/all-morpho-images", "/uufs/sci.utah.edu/scratch/jakobj/data/nfs_raw")
 # dataset = nfsdata.PairedDataset("./data/paired-xrd-sem-2", "train", mode="sem", sem_transform=transforms.ToTensor())
 
 # # dataset = nfsdata.ImageFolderDataset("val", "/scratch_nvme/jakobj/nfs/routes/", transform=transforms.ToTensor())

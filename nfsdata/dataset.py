@@ -55,7 +55,7 @@ def build_nfs_datasets(
 
     # remove duplicates
     print("Removing duplicates... ", end="", flush=True)
-    df = DataFrame().from_dict(image_metadata)
+    df = DataFrame(image_metadata)
     df = df.drop_duplicates(subset="Hash", keep="first")
     print_green("done.")
 
